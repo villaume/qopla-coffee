@@ -1,0 +1,17 @@
+{
+  "name": "qopla-coffee",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "qopla-coffee": "./cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js",
+    "test-login": "node test-login.js"
+  },
+  "dependencies": {
+    "@stricli/core": "^1.2.6",
+    "node-fetch": "^3.3.2"
+  }
+}
