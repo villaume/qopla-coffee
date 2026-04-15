@@ -46,11 +46,24 @@ async function gql(endpoint, { operationName, variables, query }, cookies = null
     }
   }
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ operationName, variables, query }),
-  });
+  let res;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ operationName, variables, query }),
+      });
+      break;
+    } catch (err) {
+      if (attempt === 2) {
+        const cause = err.cause ? ` (${err.cause.code || err.cause.message || err.cause})` : '';
+        throw new Error(`fetch failed after 3 attempts${cause}: ${endpoint}`);
+      }
+      // Brief pause before retry
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -417,7 +430,12 @@ export async function placeOrder(params, cookies) {
 
   const result = data.addWebOrder;
   if (!result?.webPaymentResponse?.operationSuccess) {
-    throw new Error(`Order failed: ${result?.webPaymentResponse?.errorText || 'unknown error'}`);
+    const errorText = result?.webPaymentResponse?.errorText;
+    const orderStatus = result?.order?.onlineOrderStatus;
+    if (orderStatus === 'INVALID' && !result?.webPaymentResponse) {
+      throw new Error('Order rejected by server (status: INVALID). This usually means the subscription cooldown has not elapsed — try again later.');
+    }
+    throw new Error(`Order failed: ${errorText || 'unknown error'}`);
   }
 
   return {
