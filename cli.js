@@ -21,6 +21,7 @@ import {
   checkCooldown,
   placeOrder,
 } from './qopla-client.js';
+import { recordOrder, getStats } from './stats.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -130,6 +131,8 @@ const orderCommand = buildCommand({
     }, cookies);
 
     stdout.write(`Order placed! Order #${result.orderNo} (${result.status})\n`);
+
+    await recordOrder({ user: user.name, product: productName.trim() });
   },
   parameters: {
     flags: {
@@ -245,6 +248,40 @@ const menuCommand = buildCommand({
   },
 });
 
+// ---------- "stats" command ----------
+
+const statsCommand = buildCommand({
+  async func() {
+    const stdout = this.process.stdout;
+    const stats = await getStats();
+    if (!stats) {
+      stdout.write('Stats not configured. Set GITHUB_TOKEN and GITHUB_GIST_ID in .env\n');
+      return;
+    }
+
+    stdout.write(`\nTotal coffees ordered: ${stats.totalCoffees}\n`);
+
+    if (stats.lastOrder) {
+      const last = new Date(stats.lastOrder.ts);
+      const ago = Date.now() - last.getTime();
+      const mins = Math.floor(ago / 60000);
+      const hours = Math.floor(mins / 60);
+      const days = Math.floor(hours / 24);
+
+      let agoStr;
+      if (days > 0) agoStr = `${days}d ${hours % 24}h ago`;
+      else if (hours > 0) agoStr = `${hours}h ${mins % 60}m ago`;
+      else agoStr = `${mins}m ago`;
+
+      stdout.write(`Last order: ${stats.lastOrder.product} by ${stats.lastOrder.user} (${agoStr})\n`);
+    }
+  },
+  parameters: { flags: {} },
+  docs: {
+    brief: 'Show coffee counter and time since last order',
+  },
+});
+
 // ---------- App ----------
 
 const routes = buildRouteMap({
@@ -252,6 +289,7 @@ const routes = buildRouteMap({
     order: orderCommand,
     status: statusCommand,
     menu: menuCommand,
+    stats: statsCommand,
   },
   docs: {
     brief: 'Order coffee from Brod & Salt via Qopla subscription',
